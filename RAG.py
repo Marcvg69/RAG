@@ -2,7 +2,53 @@ import os
 import torch
 from transformers import AutoTokenizer, AutoModel, pipeline
 from sklearn.metrics.pairwise import cosine_similarity
+cdfrom langchain_core.prompts import PromptTemplate
+from langchain_openai import OpenAI
+from langchain_ollama import OllamaLLM
+from pdf_loader import PdfLoader
+from vector_store import VectorStore
+from chunk_text import Chunker
 
+class RAG:
+
+  def __init__(self, ):
+    self.instructor_prompt = """Instruction: You're an expert problem solver you answer questions from context given below. You strictly adhere to the context and never move away from it. You're honest and if you do not find the answer to the question in the context you politely say "I Don't know!"
+    So help me answer the user question mentioned below with the help of the context provided
+    User Question: {user_query}
+    Answer Context: {answer_context}
+    """
+    self.prompt = PromptTemplate.from_template(self.instructor_prompt)
+    self.llm = OllamaLLM(model="llama3.2:3b") #OpenAI()
+    self.vectorStore = VectorStore()
+    self.pdfloader = PdfLoader()
+    self.chunker = Chunker()
+    pass
+
+  def run(self, filePath, query):
+    docs = self.pdfloader.read_file(filePath)
+    list_of_docs = self.chunker.chunk_docs(docs)
+    self.vectorStore.add_docs(list_of_docs)
+    results = self.vectorStore.search_docs(query)
+    answer_context = "\n\n"
+    for res in results:
+      answer_context = answer_context + "\n\n" + res.page_content
+    chain = self.prompt | self.llm
+    response = chain.invoke(
+        {
+            "user_query": query,
+            "answer_context": answer_context,
+        }
+    )
+    return response
+  pass
+
+if __name__ == "__main__":
+  rag = RAG()
+  filePath="investment.pdf"
+  query="How to invest?"
+  response = rag.run(filePath, query)
+  print(response)
+  pass
 
 # Sample documents
 documents = [
